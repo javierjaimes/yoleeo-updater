@@ -15,11 +15,11 @@ REDIS = Redis.new(:host => uri.host, :port => uri.port, :password => uri.passwor
 #puts redis.HINCRBY 'sources', 'feed', 1
 #puts redis.HDEL 'sources', 'feed'
 
-REDIS.hmset( "feeds:1", "id", 1, "name", "El Tiempo", "rss", "http://www.eltiempo.com/rss.xml" ) if !REDIS.hlen( 'feeds:1' )
-REDIS.hmset( "feeds:2", "id", 2, "name", "El Espectador", "rss",  "http://feeds.elespectador.com/c/33813/f/607844/index.rss") if !REDIS.hlen( 'feeds:2' )
-REDIS.hmset( "feeds:3", "id", 3, "name", "El Pais", "rss",  "http://www.elpais.com.co/elpais/rss.xml") if !REDIS.hlen( 'feeds:3' )
-REDIS.hmset( "feeds:4", "id", 4, "name", "El Colombiano", "rss",  "http://www.elcolombiano.com/rss/portada.xml") if !REDIS.hlen( 'feeds:4' )
-REDIS.hmset( "feeds:5", "id", 5, "name", "El Heraldo", "rss",  "http://www.elheraldo.co/rss.xml") if !REDIS.hlen( 'feeds:5' )
+REDIS.hmset( "feeds:1", "id", 1, "name", "El Tiempo", "rss", "http://www.eltiempo.com/rss.xml" ) if REDIS.hlen( 'feeds:1' ) == 0
+REDIS.hmset( "feeds:2", "id", 2, "name", "El Espectador", "rss",  "http://feeds.elespectador.com/c/33813/f/607844/index.rss") if REDIS.hlen( 'feeds:2' ) == 0
+REDIS.hmset( "feeds:3", "id", 3, "name", "El Pais", "rss",  "http://www.elpais.com.co/elpais/rss.xml") if REDIS.hlen( 'feeds:3' ) == 0
+REDIS.hmset( "feeds:4", "id", 4, "name", "El Colombiano", "rss",  "http://www.elcolombiano.com/rss/portada.xml") if REDIS.hlen( 'feeds:4' ) == 0
+REDIS.hmset( "feeds:5", "id", 5, "name", "El Heraldo", "rss",  "http://www.elheraldo.co/rss.xml") if REDIS.hlen( 'feeds:5' ) == 0
 
 def open_file url
   puts 'Open RSS FILE from Internet'
