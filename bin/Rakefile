@@ -1,0 +1,256 @@
+#!/usr/bin/env ruby
+
+require 'open-uri'
+require 'json'
+require 'xmlsimple'
+require 'redis' 
+
+
+uri = URI.parse(ENV["REDISTOGO_URL"])
+REDIS = Redis.new(:host => uri.host, :port => uri.port, :password => uri.password)
+#REDIS = Redis.new( :host => 'localhost', :port => '6379', :password => 'foobared' )
+#sources = redis.HLEN( 'sources' )
+#puts sources
+#puts redis.HGET 'feeds:1', 'name'
+#puts redis.HINCRBY 'sources', 'feed', 1
+#puts redis.HDEL 'sources', 'feed'
+
+REDIS.hmset( "feeds:1", "id", 1, "name", "El Tiempo", "rss", "http://www.eltiempo.com/rss.xml" ) if !REDIS.hlen( 'feeds:1' )
+REDIS.hmset( "feeds:2", "id", 2, "name", "El Espectador", "rss",  "http://feeds.elespectador.com/c/33813/f/607844/index.rss") if !REDIS.hlen( 'feeds:2' )
+REDIS.hmset( "feeds:3", "id", 3, "name", "El Pais", "rss",  "http://www.elpais.com.co/elpais/rss.xml") if !REDIS.hlen( 'feeds:3' )
+REDIS.hmset( "feeds:4", "id", 4, "name", "El Colombiano", "rss",  "http://www.elcolombiano.com/rss/portada.xml") if !REDIS.hlen( 'feeds:4' )
+REDIS.hmset( "feeds:5", "id", 5, "name", "El Heraldo", "rss",  "http://www.elheraldo.co/rss.xml") if !REDIS.hlen( 'feeds:5' )
+
+def open_file url
+  puts 'Open RSS FILE from Internet'
+  f = open( url )
+  XmlSimple.xml_in(f, {  } )
+end
+
+def image_url node
+  unless node.nil?
+    node.each do | enclosure |
+      return enclosure[ 'url' ]
+    end
+  else
+    return ''
+  end
+end
+
+def save_story feed, id, key, value
+  REDIS.zadd sprintf( 'feeds:%s:stories', feed ), key, id
+  REDIS.zadd 'feeds:stories', key, id
+  REDIS.set( sprintf('stories:%s', id), value.to_json )
+end
+
+desc 'loading rss'
+namespace :feeds do
+
+  desc 'eltiempo.com'
+  task '1' do
+
+
+    puts 'load rss el tiempo'
+    url = REDIS.hget( 'feeds:1', 'rss' )
+    rss = open_file url
+
+    rss[ 'channel' ].each do |channel|
+      puts channel[ 'title' ]
+      channel[ 'item' ].each do |item|
+        #puts item[ 'pubDate' ][0] 
+        date = DateTime.rfc3339( item[ 'pubDate' ][0] )
+        #date = DateTime.rfc2822( item[ 'pubDate' ][0] )
+        story_date = date.to_time
+
+        story_image = image_url item[ 'enclosure' ]
+
+        #puts item['encoded'][0].to_s
+        content = item[ 'encoded' ][0].to_s
+        story_description = content.gsub(%r{</?[^>]+?>}, '')[0..250]
+        #puts story_description
+        
+        id = item[ 'id' ][0]
+        story_id = sprintf '%s%s', id, story_date.to_i
+
+        story = [
+          :id => story_id,
+          :title => item[ 'title'][0], 
+          :url => item['link'][0],
+          'created_at' => story_date,
+          'image' => story_image,
+          'description' => story_description,
+          'source' => '1',
+          'source_id' => id
+        ]
+
+        puts story_date
+        save_story 1, story_id, story_date.to_i, story
+
+      end
+    end
+  end
+
+  desc 'elespectador.com'
+  task '2' do
+
+    url = REDIS.hget( 'feeds:2', 'rss' )
+    rss = open_file url
+
+    rss[ 'channel' ].each do |channel|
+      puts channel[ 'title' ]
+      channel[ 'item' ].each do |item|
+
+        date = DateTime.rfc2822( item[ 'pubDate' ][0] )
+        story_date = date.to_time
+
+        story_image = image_url item[ 'enclosure' ]
+
+        content = item[ 'description' ][0].to_s
+        story_description = content.gsub(%r{</?[^>]+?>}, '')[0..250]
+        
+        id = ''
+        item[ 'guid' ].each do |guid|
+          id = guid[ 'content' ].sub /\s.*$/i, ''
+        end
+        story_id = sprintf '%s%s', id, story_date.to_i
+        story = [
+          :id => story_id,
+          :title => item[ 'title'][0], 
+          :url => item['link'][0],
+          :created_at => story_date,
+          :image => story_image,
+          :description => story_description,
+          :source => '2',
+          :source_id => id
+        ]
+
+        save_story 2, story_id, story_date.to_i, story
+      end
+    end
+  end
+
+  desc 'elpais.com.co'
+  task '3' do
+
+    url = REDIS.hget( 'feeds:3', 'rss' )
+    rss = open_file url
+
+    rss[ 'channel' ].each do |channel|
+      puts channel[ 'title' ]
+      channel[ 'item' ].each do |item|
+
+        date = DateTime.rfc2822( item[ 'pubDate' ][0] )
+        story_date = date.to_time
+
+        story_image = image_url item[ 'enclosure' ]
+
+        #content = item[ 'description' ][0].to_s
+        #story_description = content.gsub(%r{</?[^>]+?>}, '')[0..250]
+        story_description = ''
+        
+        id = ''
+        item[ 'guid' ].each do |guid|
+          id = guid[ 'content' ].sub /\s.*$/i, ''
+        end
+
+        story_id = sprintf '%s%s', id, story_date.to_i
+        story = [
+          :id => story_id,
+          :title => item[ 'title'][0], 
+          :url => item['link'][0],
+          :created_at => story_date,
+          :image => story_image,
+          :description => story_description,
+          :source => '2',
+          :source_id => id
+        ]
+
+        save_story 3, story_id, story_date.to_i, story
+      end
+    end
+  end
+  
+  desc 'elcolombiano.com'
+  task '4' do
+
+    url = REDIS.hget( 'feeds:4', 'rss' )
+    rss = open_file url
+
+    rss[ 'channel' ].each do |channel|
+      puts channel[ 'title' ]
+      channel[ 'item' ].each do |item|
+
+        date = DateTime.rfc2822( item[ 'pubDate' ][0] )
+        story_date = date.to_time
+
+        story_image = image_url item[ 'enclosure' ]
+
+        content = item[ 'description' ][0].to_s
+        story_description = content.gsub(%r{</?[^>]+?>}, '')[0..250]
+        
+        id = item[ 'id' ][0]
+        story_id = sprintf '%s%s', id, story_date.to_i
+        story = [
+          :id => story_id,
+          :title => item[ 'title'][0], 
+          :url => item['link'][0],
+          :created_at => story_date,
+          :image => story_image,
+          :description => story_description,
+          :source => '2',
+          :source_id => id
+        ]
+
+        puts story_date
+        save_story 4, story_id, story_date.to_i, story
+      end
+    end
+  end
+
+  desc 'elheraldo.com'
+  task '5' do
+
+    url = REDIS.hget( 'feeds:5', 'rss' )
+    rss = open_file url
+
+    rss[ 'channel' ].each do |channel|
+      puts channel[ 'title' ]
+      channel[ 'item' ].each do |item|
+
+        date = DateTime.rfc2822( item[ 'pubDate' ][0] )
+        story_date = date.to_time
+
+        story_image = image_url item[ 'enclosure' ]
+
+        #content = item[ 'description' ][0].to_s
+        #story_description = content.gsub(%r{</?[^>]+?>}, '')[0..250]
+        story_description = ''
+        
+        id = ''
+        item[ 'guid' ].each do |guid|
+          id = guid[ 'content' ].sub /\s.*$/i, ''
+        end
+
+        story_id = sprintf '%s%s', id, story_date.to_i
+        story = [
+          :id => story_id,
+          :title => item[ 'title'][0], 
+          :url => item['link'][0],
+          :created_at => story_date,
+          :image => story_image,
+          :description => story_description,
+          :source => '2',
+          :source_id => id
+        ]
+
+        save_story 5, story_id, story_date.to_i, story
+      end
+    end
+  end
+end
+
+
+desc 'Load all RSS sources'
+task :default => [ 'feeds:1', 'feeds:2', 'feeds:3', 'feeds:4', 'feeds:5' ]  do
+  puts 'Starting load rss'
+end
