@@ -251,6 +251,7 @@ end
 
 
 desc 'Load all RSS sources'
-task :default => [ 'feeds:1', 'feeds:2', 'feeds:3', 'feeds:4', 'feeds:5' ]  do
+#task :default => [ 'feeds:1', 'feeds:2', 'feeds:3', 'feeds:4', 'feeds:5' ]  do
+task :default => [ 'feeds:2', 'feeds:3', 'feeds:4', 'feeds:5' ]  do
   puts 'Starting load rss'
 end
